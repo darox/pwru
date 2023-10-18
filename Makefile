@@ -2,13 +2,13 @@ GO := go
 GO_BUILD = CGO_ENABLED=1 $(GO) build
 GO_GENERATE = $(GO) generate
 GO_TAGS ?=
-TARGET_GOARCH ?= amd64
-GOARCH ?= amd64
+TARGET_GOARCH ?= arm64
+GOARCH ?= arm64
 TARGET=pwru
 INSTALL = $(QUIET)install
 BINDIR ?= /usr/local/bin
 VERSION=$(shell git describe --tags --always)
-LIBPCAP_ARCH ?= x86_64-unknown-linux-gnu
+LIBPCAP_ARCH ?= aarch64-unknown-linux-gnu
 # For compiling libpcap and CGO
 CC ?= gcc
 

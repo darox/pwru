@@ -285,7 +285,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create outputer: %s", err)
 	}
-	output.PrintHeader()
+
+	if !flags.OutputJson {
+		output.PrintHeader()
+	}
 
 	defer func() {
 		select {
@@ -311,7 +314,11 @@ func main() {
 			}
 		}
 
-		output.Print(&event)
+		if flags.OutputJson {
+			output.PrintJson(&event)
+		} else {
+			output.Print(&event)
+		}
 
 		select {
 		case <-ctx.Done():

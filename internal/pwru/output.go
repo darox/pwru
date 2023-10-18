@@ -5,6 +5,7 @@
 package pwru
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -91,23 +92,85 @@ func (o *output) PrintHeader() {
 	fmt.Fprintf(o.writer, "\n")
 }
 
+type ExtendedEvent struct {
+	AbsoluteTS   string `json:"absolute_ts"`
+	Addr         uint64 `json:"addr"`
+	Cpu          uint32 `json:"cpu"`
+	Meta         Meta   `json:"meta"`
+	PID          uint32 `json:"pid"`
+	ParamSecond  uint64 `json:"param_second"`
+	PrintSkbId   uint64 `json:"print_skb_id"`
+	PrintStackId int64  `json:"print_stack_id"`
+	SAddr        uint64 `json:"saddr"`
+	Timestamp    string `json:"timestamp"`
+	Tuple        Tuple  `json:"tuple"`
+	Type         uint32 `json:"type"`
+}
+
+func (o *output) PrintJson(event *Event) {
+
+	e := ExtendedEvent{
+		Addr:         event.Addr,
+		Cpu:          event.CPU,
+		Meta:         event.Meta,
+		PID:          event.PID,
+		ParamSecond:  event.ParamSecond,
+		PrintSkbId:   event.PrintSkbId,
+		PrintStackId: event.PrintStackId,
+		SAddr:        event.SAddr,
+		Timestamp:    event.Timestamp,
+		Tuple:        event.Tuple,
+		Type:         event.Type,
+	}
+
+	if o.flags.OutputTS == "absolute" {
+		e.AbsoluteTS = getAbsoluteTs()
+	}
+
+	if o.flags.OutputTS == "relative" {
+		ts := event.Timestamp
+		ts = getRelativeTs(event, o)
+		e.Timestamp = ts
+	}
+
+	encoder := json.NewEncoder(os.Stdout)
+
+	if err := encoder.Encode(e); err != nil {
+		log.Printf("Failed to encode event: %v", err)
+	}
+
+}
+
+func getAbsoluteTs() string {
+	return time.Now().Format(absoluteTS)
+}
+
+func getRelativeTs(event *Event, o *output) uint64 {
+	ts := event.Timestamp
+	if last, found := o.lastSeenSkb[event.SAddr]; found {
+		ts = ts - last
+	} else {
+		ts = 0
+	}
+	return ts
+}
+
 func (o *output) Print(event *Event) {
 	if o.flags.OutputTS == "absolute" {
-		fmt.Fprintf(o.writer, "%12s ", time.Now().Format(absoluteTS))
+		fmt.Fprintf(o.writer, "%12s ", getAbsoluteTs())
 	}
+
 	p, err := ps.FindProcess(int(event.PID))
 	execName := "<empty>"
 	if err == nil && p != nil {
 		execName = p.Executable()
 	}
+
 	ts := event.Timestamp
 	if o.flags.OutputTS == "relative" {
-		if last, found := o.lastSeenSkb[event.SAddr]; found {
-			ts = ts - last
-		} else {
-			ts = 0
-		}
+		ts = getRelativeTs(event, o)
 	}
+
 	var addr uint64
 	// XXX: not sure why the -1 offset is needed on x86 but not on arm64
 	switch runtime.GOARCH {
