@@ -93,53 +93,26 @@ func (o *output) PrintHeader() {
 	fmt.Fprintf(o.writer, "\n")
 }
 
-type ExtendedEvent struct {
-	AbsoluteTS   string `json:"absolute_ts"`
-	Addr         uint64 `json:"addr"`
-	Cpu          uint32 `json:"cpu"`
-	Meta         Meta   `json:"meta"`
-	PID          uint32 `json:"pid"`
-	ParamSecond  uint64 `json:"param_second"`
-	PrintSkbId   uint64 `json:"print_skb_id"`
-	PrintStackId int64  `json:"print_stack_id"`
-	SAddr        uint64 `json:"saddr"`
-	Timestamp    string `json:"timestamp"`
-	Tuple        Tuple  `json:"tuple"`
-	Type         uint32 `json:"type"`
-}
-
 func (o *output) PrintJson(event *Event) {
 
-	e := ExtendedEvent{
-		Addr:         event.Addr,
-		Cpu:          event.CPU,
-		Meta:         event.Meta,
-		PID:          event.PID,
-		ParamSecond:  event.ParamSecond,
-		PrintSkbId:   event.PrintSkbId,
-		PrintStackId: event.PrintStackId,
-		SAddr:        event.SAddr,
-		Timestamp:    event.Timestamp,
-		Tuple:        event.Tuple,
-		Type:         event.Type,
-	}
+	// Create a map to hold the data for the json output
 
-	if o.flags.OutputTS == "absolute" {
-		e.AbsoluteTS = getAbsoluteTs()
-	}
+	d := make(map[string]interface{})
 
-	if o.flags.OutputTS == "relative" {
-		ts := event.Timestamp
-		ts = getRelativeTs(event, o)
-		e.Timestamp = ts
-	}
+	// Add the data to the map
+	d["SKB"] = fmt.Sprintf("%#x", event.SAddr)
+	d["CPU"] = event.CPU
+	d["PROCESS"] = getExecName(int(event.PID))
 
+	// Create new encoder to write the json to stdout
 	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
 
-	if err := encoder.Encode(e); err != nil {
-		log.Printf("Failed to encode event: %v", err)
+	err := encoder.Encode(d)
+
+	if err != nil {
+		log.Fatalf("Error encoding JSON: %s", err)
 	}
-
 }
 
 func getAbsoluteTs() string {
@@ -156,16 +129,22 @@ func getRelativeTs(event *Event, o *output) uint64 {
 	return ts
 }
 
+func getExecName(pid int) string {
+	p, err := ps.FindProcess(pid)
+	execName := fmt.Sprintf("<empty>:(%d)", pid)
+	if err == nil && p != nil {
+		return fmt.Sprintf("%s:%d", p.Executable(), pid)
+	}
+
+	return execName
+}
+
 func (o *output) Print(event *Event) {
 	if o.flags.OutputTS == "absolute" {
 		fmt.Fprintf(o.writer, "%12s ", getAbsoluteTs())
 	}
 
-	p, err := ps.FindProcess(int(event.PID))
-	execName := fmt.Sprintf("<empty>(%d)", event.PID)
-	if err == nil && p != nil {
-		execName = fmt.Sprintf("%s(%d)", p.Executable(), event.PID)
-	}
+	execName := getExecName(int(event.PID))
 
 	ts := event.Timestamp
 	if o.flags.OutputTS == "relative" {
