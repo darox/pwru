@@ -103,6 +103,19 @@ func (o *output) PrintJson(event *Event) {
 	d["process"] = getExecName(int(event.PID))
 	d["func"] = getOutFuncName(o, event, event.Addr)
 
+	o.lastSeenSkb[event.SAddr] = event.Timestamp
+
+	if o.flags.OutputTS != "none" {
+		switch o.flags.OutputTS {
+		case "absolute":
+			d["time"] = getAbsoluteTs()
+		case "relative":
+			d["time"] = getRelativeTs(event, o)
+		case "current":
+			d["time"] = event.Timestamp
+		}
+	}
+
 	// Create new encoder to write the json to stdout
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetEscapeHTML(false)
@@ -151,7 +164,6 @@ func getAddrByArch(event *Event, o *output) (addr uint64) {
 }
 
 func getOutFuncName(o *output, event *Event, addr uint64) string {
-
 	var funcName string
 
 	if ksym, ok := o.addr2name.Addr2NameMap[addr]; ok {
