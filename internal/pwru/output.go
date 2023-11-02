@@ -94,15 +94,14 @@ func (o *output) PrintHeader() {
 }
 
 func (o *output) PrintJson(event *Event) {
-
 	// Create a map to hold the data for the json output
-
 	d := make(map[string]interface{})
 
 	// Add the data to the map
-	d["SKB"] = fmt.Sprintf("%#x", event.SAddr)
-	d["CPU"] = event.CPU
-	d["PROCESS"] = getExecName(int(event.PID))
+	d["skb"] = fmt.Sprintf("%#x", event.SAddr)
+	d["cpu"] = event.CPU
+	d["process"] = getExecName(int(event.PID))
+	d["func"] = getOutFuncName(o, event, event.Addr)
 
 	// Create new encoder to write the json to stdout
 	encoder := json.NewEncoder(os.Stdout)
@@ -135,24 +134,10 @@ func getExecName(pid int) string {
 	if err == nil && p != nil {
 		return fmt.Sprintf("%s:%d", p.Executable(), pid)
 	}
-
 	return execName
 }
 
-func (o *output) Print(event *Event) {
-	if o.flags.OutputTS == "absolute" {
-		fmt.Fprintf(o.writer, "%12s ", getAbsoluteTs())
-	}
-
-	execName := getExecName(int(event.PID))
-
-	ts := event.Timestamp
-	if o.flags.OutputTS == "relative" {
-		ts = getRelativeTs(event, o)
-	}
-
-	var addr uint64
-	// XXX: not sure why the -1 offset is needed on x86 but not on arm64
+func getAddrByArch(event *Event, o *output) (addr uint64) {
 	switch runtime.GOARCH {
 	case "amd64":
 		addr = event.Addr
@@ -162,7 +147,13 @@ func (o *output) Print(event *Event) {
 	case "arm64":
 		addr = event.Addr
 	}
+	return addr
+}
+
+func getOutFuncName(o *output, event *Event, addr uint64) string {
+
 	var funcName string
+
 	if ksym, ok := o.addr2name.Addr2NameMap[addr]; ok {
 		funcName = ksym.name
 	} else if ksym, ok := o.addr2name.Addr2NameMap[addr-4]; runtime.GOARCH == "amd64" && ok {
@@ -192,6 +183,26 @@ func (o *output) Print(event *Event) {
 			outFuncName = fmt.Sprintf("%s (%d)", funcName, event.ParamSecond)
 		}
 	}
+
+	return outFuncName
+}
+
+func (o *output) Print(event *Event) {
+	if o.flags.OutputTS == "absolute" {
+		fmt.Fprintf(o.writer, "%12s ", getAbsoluteTs())
+	}
+
+	execName := getExecName(int(event.PID))
+
+	ts := event.Timestamp
+	if o.flags.OutputTS == "relative" {
+		ts = getRelativeTs(event, o)
+	}
+
+	// XXX: not sure why the -1 offset is needed on x86 but not on arm64
+	addr := getAddrByArch(event, o)
+
+	outFuncName := getOutFuncName(o, event, addr)
 
 	fmt.Fprintf(o.writer, "%18s %6s %16s %24s", fmt.Sprintf("%#x", event.SAddr),
 		fmt.Sprintf("%d", event.CPU), fmt.Sprintf("[%s]", execName), outFuncName)
