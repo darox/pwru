@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cilium/ebpf"
 	flag "github.com/spf13/pflag"
 )
 
@@ -29,6 +28,7 @@ type Flags struct {
 	FilterMark     uint32
 	FilterFunc     string
 	FilterTrackSkb bool
+	FilterTraceTc  bool
 	FilterIfname   string
 	FilterPcap     string
 
@@ -58,6 +58,7 @@ func (f *Flags) SetFlags() {
 	flag.StringVar(&f.FilterNetns, "filter-netns", "", "filter netns (\"/proc/<pid>/ns/net\", \"inode:<inode>\")")
 	flag.Uint32Var(&f.FilterMark, "filter-mark", 0, "filter skb mark")
 	flag.BoolVar(&f.FilterTrackSkb, "filter-track-skb", false, "trace a packet even if it does not match given filters (e.g., after NAT or tunnel decapsulation)")
+	flag.BoolVar(&f.FilterTraceTc, "filter-trace-tc", false, "trace TC bpf progs")
 	flag.StringVar(&f.FilterIfname, "filter-ifname", "", "filter skb ifname in --filter-netns (if not specified, use current netns)")
 	flag.StringVar(&f.OutputTS, "timestamp", "none", "print timestamp per skb (\"current\", \"relative\", \"absolute\", \"none\")")
 	flag.BoolVar(&f.OutputMeta, "output-meta", false, "print skb metadata")
@@ -78,8 +79,8 @@ func (f *Flags) SetFlags() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] [pcap-filter]\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "    Availble pcap-filter: see \"man 7 pcap-filter\"\n")
-		fmt.Fprintf(os.Stderr, "    Availble options:\n")
+		fmt.Fprintf(os.Stderr, "    Available pcap-filter: see \"man 7 pcap-filter\"\n")
+		fmt.Fprintf(os.Stderr, "    Available options:\n")
 		flag.PrintDefaults()
 	}
 }
@@ -125,29 +126,4 @@ type Event struct {
 	PrintStackId int64
 	ParamSecond  uint64
 	CPU          uint32
-}
-
-type KProbeMaps interface {
-	GetEvents() *ebpf.Map
-	GetPrintStackMap() *ebpf.Map
-}
-
-type KProbeMapsWithOutputSKB interface {
-	KProbeMaps
-	GetPrintSkbMap() *ebpf.Map
-}
-
-type KProbePrograms interface {
-	GetKprobeSkb1() *ebpf.Program
-	GetKprobeSkb2() *ebpf.Program
-	GetKprobeSkb3() *ebpf.Program
-	GetKprobeSkb4() *ebpf.Program
-	GetKprobeSkb5() *ebpf.Program
-	GetKprobeSkbLifetimeTermination() *ebpf.Program
-}
-
-type KProbeObjects interface {
-	KProbeMaps
-	KProbePrograms
-	Close() error
 }

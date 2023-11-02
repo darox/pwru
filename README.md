@@ -50,14 +50,15 @@ You can download the statically linked executable for x86\_64 and arm64 from the
 ```
 $ ./pwru --help
 Usage: pwru [options] [pcap-filter]
-    Availble pcap-filter: see "man 7 pcap-filter"
-    Availble options:
+    Available pcap-filter: see "man 7 pcap-filter"
+    Available options:
       --all-kmods                 attach to all available kernel modules
       --backend string            Tracing backend('kprobe', 'kprobe-multi'). Will auto-detect if not specified.
       --filter-func string        filter kernel functions to be probed by name (exact match, supports RE2 regular expression)
       --filter-ifname string      filter skb ifname in --filter-netns (if not specified, use current netns)
       --filter-mark uint32        filter skb mark
       --filter-netns string       filter netns ("/proc/<pid>/ns/net", "inode:<inode>")
+      --filter-trace-tc           trace TC bpf progs
       --filter-track-skb          trace a packet even if it does not match given filters (e.g., after NAT or tunnel decapsulation)
       --kernel-btf string         specify kernel BTF file
       --kmods strings             list of kernel modules names to attach to
@@ -136,6 +137,8 @@ See [docs/vagrant.md](docs/vagrant.md)
 
 * Go >= 1.16
 * LLVM/clang >= 1.12
+* Bison 
+* Lex/Flex >= 2.5.31
 
 ### Building
 

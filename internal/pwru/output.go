@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -43,8 +44,8 @@ type output struct {
 }
 
 func NewOutput(flags *Flags, printSkbMap *ebpf.Map, printStackMap *ebpf.Map,
-	addr2Name Addr2Name, kprobeMulti bool, btfSpec *btf.Spec) (*output, error) {
-
+	addr2Name Addr2Name, kprobeMulti bool, btfSpec *btf.Spec,
+) (*output, error) {
 	writer := os.Stdout
 
 	if flags.OutputFile != "" {
@@ -161,9 +162,9 @@ func (o *output) Print(event *Event) {
 	}
 
 	p, err := ps.FindProcess(int(event.PID))
-	execName := "<empty>"
+	execName := fmt.Sprintf("<empty>(%d)", event.PID)
 	if err == nil && p != nil {
-		execName = p.Executable()
+		execName = fmt.Sprintf("%s(%d)", p.Executable(), event.PID)
 	}
 
 	ts := event.Timestamp
@@ -192,6 +193,16 @@ func (o *output) Print(event *Event) {
 		funcName = ksym.name
 	} else {
 		funcName = fmt.Sprintf("0x%x", addr)
+	}
+
+	if strings.HasPrefix(funcName, "bpf_prog_") && strings.HasSuffix(funcName, "[bpf]") {
+		// The name of bpf prog is "bpf_prog_<id>_<name>  [bpf]". We want to
+		// print only the name.
+		items := strings.Split(funcName, "_")
+		if len(items) > 3 {
+			funcName = strings.Join(items[3:], "_")
+			funcName = strings.TrimSpace(funcName[:len(funcName)-5])
+		}
 	}
 
 	outFuncName := funcName
@@ -298,7 +309,6 @@ func getKFreeSKBReasons(spec *btf.Spec) (map[uint64]string, error) {
 	ret := map[uint64]string{}
 	for _, val := range dropReasonsEnum.Values {
 		ret[uint64(val.Value)] = val.Name
-
 	}
 
 	return ret, nil
@@ -333,7 +343,7 @@ func getIfaces() (map[uint64]map[uint32]string, error) {
 			continue
 		}
 		var stat unix.Stat_t
-		if err0 := unix.Fstat(int(fd.Fd()), &stat); err != nil {
+		if err0 := unix.Fstat(int(fd.Fd()), &stat); err0 != nil {
 			err = errors.Join(err, err0)
 			continue
 		}
@@ -341,8 +351,6 @@ func getIfaces() (map[uint64]map[uint32]string, error) {
 
 		if _, exists := ifaceCache[inode]; exists {
 			continue // we already checked that netns
-		} else {
-			ifaceCache[inode] = make(map[uint32]string)
 		}
 
 		ifaces, err0 := getIfacesInNetNs(path)
@@ -356,7 +364,6 @@ func getIfaces() (map[uint64]map[uint32]string, error) {
 	}
 
 	return ifaceCache, err
-
 }
 
 func getIfacesInNetNs(path string) (map[uint32]string, error) {
